@@ -191,7 +191,20 @@ export default function PatientPortal() {
             startContent={<User className="w-4 h-4 text-white/30" />}
           />
         </div>
-        
+         <div>
+          <label className="text-xs text-white/40 mb-1.5 block uppercase tracking-wider">Gemini API Key</label>
+          <Input
+            type="password"
+            placeholder="AIza..."
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            classNames={{
+              input: "bg-transparent text-white placeholder:text-white/20",
+              inputWrapper: "bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-emerald-500/50",
+            }}
+            startContent={<Sparkles className="w-4 h-4 text-white/30" />}
+          />
+        </div> 
       </div>
 
       <Tabs
