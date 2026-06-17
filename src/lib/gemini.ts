@@ -2,7 +2,7 @@ import type { MedicalRecord, Medicine, TestResult } from "@/types";
 
 const SYSTEM_PROMPT = `
 You are a medical document parser. 
-Extract data from the document and return ONLY valid JSON with this exact structure:
+Extract data from the prescription image and return ONLY valid JSON with this exact structure:
 {
   "doctorName": "string",
   "date": "YYYY-MM-DD",
@@ -11,7 +11,13 @@ Extract data from the document and return ONLY valid JSON with this exact struct
   "medicines": [{"name": "string", "dosage": "string", "duration": "string", "category": "string"}],
   "testResults": [{"testName": "string", "value": "string", "unit": "string"}]
 }
-If no data is found, return empty strings or empty arrays. Do not add any conversational text, no markdown, no backticks.
+Rules:
+- doctorName: extract doctor's name from the prescription header
+- date: convert any date format to YYYY-MM-DD
+- patientCase: clinical description or diagnosis
+- medicines: extract all medicines with name, dosage, duration. For category use one of: Antibiotic, Painkiller, Antihistamine, Antacid, Vitamin, Other
+- If a field is not found, use empty string or empty array
+- Return ONLY the JSON object, no markdown, no backticks, no explanation
 `;
 
 export async function parsePrescriptionFromBase64(
@@ -30,7 +36,6 @@ export async function parsePrescriptionFromBase64(
     }],
     generationConfig: {
       temperature: 0.1,
-      responseMimeType: "application/json",
     },
   };
 
@@ -43,8 +48,10 @@ export async function parsePrescriptionFromBase64(
 
     const data = await res.json();
 
+    // Extract text from response
     let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
+    // Clean markdown if any
     rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
     let parsed: any = {};
@@ -52,7 +59,7 @@ export async function parsePrescriptionFromBase64(
       parsed = JSON.parse(rawText);
     } catch (e) {
       console.error("JSON Parse Error:", e);
-      console.log("Raw Response received from AI:", rawText);
+      console.error("Raw text was:", rawText);
     }
 
     return {
