@@ -5,8 +5,9 @@ export async function POST(req: Request) {
     const geminiBody = await req.json();
 
     const apiKey = process.env.GEMINI_API_KEY;
+    
     if (!apiKey) {
-      return NextResponse.json({ error: "API Key not configured on server" }, { status: 500 });
+      return NextResponse.json({ error: "API Key not configured" }, { status: 500 });
     }
 
     const response = await fetch(
@@ -20,7 +21,8 @@ export async function POST(req: Request) {
 
     const data = await response.json();
     return NextResponse.json(data);
+    
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: 500 });
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
