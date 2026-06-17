@@ -16,11 +16,9 @@ If no data is found, return empty strings or empty arrays. Do not add any conver
 
 export async function parsePrescriptionFromBase64(
   base64Data: string,
-  mimeType: string,
-  apiKey: string
+  mimeType: string
 ): Promise<Partial<MedicalRecord>> {
-  
-  // Base64 ডাটা ক্লিন করা
+
   const base64Clean = base64Data.includes(",") ? base64Data.split(",")[1] : base64Data;
 
   const requestBody = {
@@ -40,15 +38,13 @@ export async function parsePrescriptionFromBase64(
     const res = await fetch("/api/gemini", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...requestBody, apiKey }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await res.json();
-    
-    // এআই থেকে আসা ডাটা এক্সট্রাক্ট করা
+
     let rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    
-    // মার্কডাউন এবং ব্যাকটিক ক্লিন করা
+
     rawText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
 
     let parsed: any = {};

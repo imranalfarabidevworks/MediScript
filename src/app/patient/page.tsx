@@ -6,9 +6,7 @@ import {
   Input,
   Card,
   CardBody,
-  CardHeader,
   Chip,
-  Divider,
   Modal,
   ModalContent,
   ModalHeader,
@@ -33,17 +31,21 @@ import {
   User,
   ChevronDown,
   ChevronUp,
-  Trash2,
 } from "lucide-react";
 import type { MedicalRecord, Patient } from "@/types";
-import { saveRecord, getRecordsByPatient, savePatient, getPatientById, getAllPatients, addAuditLog } from "@/lib/storage";
+import {
+  saveRecord,
+  getRecordsByPatient,
+  savePatient,
+  getPatientById,
+  addAuditLog,
+} from "@/lib/storage";
 import { parsePrescriptionFromBase64 } from "@/lib/gemini";
 import { fileToBase64, generateId, formatDate, CATEGORY_COLORS, cn } from "@/lib/utils";
 
 type ProcessStep = "idle" | "uploading" | "parsing" | "done" | "error";
 
 export default function PatientPortal() {
-  const [apiKey, setApiKey] = useState("");
   const [patientId, setPatientId] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -83,7 +85,6 @@ export default function PatientPortal() {
 
   const handleParse = async () => {
     if (!selectedFile) return setErrorMsg("Please select a file first.");
-    if (!apiKey.trim()) return setErrorMsg("Please enter your Gemini API key.");
     if (!patientId.trim()) return setErrorMsg("Please enter your Patient ID.");
 
     setStep("uploading");
@@ -95,7 +96,7 @@ export default function PatientPortal() {
       setProgress(50);
       setStep("parsing");
 
-      const result = await parsePrescriptionFromBase64(base64, selectedFile.type, apiKey.trim());
+      const result = await parsePrescriptionFromBase64(base64, selectedFile.type);
       setProgress(90);
 
       setParsedRecord(result);
@@ -130,7 +131,6 @@ export default function PatientPortal() {
       uploadedAt: new Date().toISOString(),
     };
 
-    // Auto-register patient if not exists
     const existing = getPatientById(patientId.trim().toUpperCase());
     if (!existing) {
       const newPatient: Patient = {
@@ -173,38 +173,23 @@ export default function PatientPortal() {
         </div>
       </div>
 
-      {/* Patient ID + API Key */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="text-xs text-white/40 mb-1.5 block uppercase tracking-wider">Patient ID</label>
-          <Input
-            placeholder="e.g. PAT-001"
-            value={patientId}
-            onChange={(e) => {
-              setPatientId(e.target.value.toUpperCase());
-              if (e.target.value) loadRecords(e.target.value.toUpperCase());
-            }}
-            classNames={{
-              input: "bg-transparent text-white placeholder:text-white/20",
-              inputWrapper: "bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-emerald-500/50",
-            }}
-            startContent={<User className="w-4 h-4 text-white/30" />}
-          />
-        </div>
-         <div>
-          <label className="text-xs text-white/40 mb-1.5 block uppercase tracking-wider">Gemini API Key</label>
-          <Input
-            type="password"
-            placeholder="AIza..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            classNames={{
-              input: "bg-transparent text-white placeholder:text-white/20",
-              inputWrapper: "bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-emerald-500/50",
-            }}
-            startContent={<Sparkles className="w-4 h-4 text-white/30" />}
-          />
-        </div> 
+      {/* Patient ID only */}
+      <div className="mb-6">
+        <label className="text-xs text-white/40 mb-1.5 block uppercase tracking-wider">Patient ID</label>
+        <Input
+          placeholder="e.g. PAT-001"
+          value={patientId}
+          onChange={(e) => {
+            setPatientId(e.target.value.toUpperCase());
+            if (e.target.value) loadRecords(e.target.value.toUpperCase());
+          }}
+          classNames={{
+            input: "bg-transparent text-white placeholder:text-white/20",
+            inputWrapper:
+              "bg-white/5 border border-white/10 hover:border-white/20 focus-within:border-emerald-500/50",
+          }}
+          startContent={<User className="w-4 h-4 text-white/30" />}
+        />
       </div>
 
       <Tabs
@@ -226,7 +211,10 @@ export default function PatientPortal() {
                   ? "border-emerald-400/60 bg-emerald-500/5"
                   : "border-white/10 hover:border-white/20 hover:bg-white/2"
               )}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
               onDragLeave={() => setDragOver(false)}
               onDrop={onDrop}
               onClick={() => fileInputRef.current?.click()}
@@ -248,7 +236,11 @@ export default function PatientPortal() {
                     </p>
                   </div>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedFile(null); setStep("idle"); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedFile(null);
+                      setStep("idle");
+                    }}
                     className="ml-4 p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white"
                   >
                     <X className="w-4 h-4" />
@@ -267,7 +259,13 @@ export default function PatientPortal() {
             {step !== "idle" && step !== "error" && (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-white/40">
-                  <span>{step === "uploading" ? "Reading file..." : step === "parsing" ? "AI extracting data..." : "Complete!"}</span>
+                  <span>
+                    {step === "uploading"
+                      ? "Reading file..."
+                      : step === "parsing"
+                      ? "AI extracting data..."
+                      : "Complete!"}
+                  </span>
                   <span>{progress}%</span>
                 </div>
                 <Progress
@@ -371,10 +369,7 @@ export default function PatientPortal() {
               </div>
             ) : (
               records.map((rec) => (
-                <Card
-                  key={rec.recordId}
-                  className="bg-white/3 border border-white/8 rounded-2xl"
-                >
+                <Card key={rec.recordId} className="bg-white/3 border border-white/8 rounded-2xl">
                   <CardBody className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
@@ -391,10 +386,16 @@ export default function PatientPortal() {
                           {rec.medicines.length} meds
                         </Chip>
                         <button
-                          onClick={() => setExpandedId(expandedId === rec.recordId ? null : rec.recordId)}
+                          onClick={() =>
+                            setExpandedId(expandedId === rec.recordId ? null : rec.recordId)
+                          }
                           className="p-1 rounded-lg hover:bg-white/10 text-white/30 hover:text-white"
                         >
-                          {expandedId === rec.recordId ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          {expandedId === rec.recordId ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -405,24 +406,32 @@ export default function PatientPortal() {
 
                         {Object.values(rec.vitalSigns).some(Boolean) && (
                           <div>
-                            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">Vital Signs</p>
+                            <p className="text-xs text-white/30 uppercase tracking-wider mb-2">
+                              Vital Signs
+                            </p>
                             <div className="grid grid-cols-3 gap-2">
                               {rec.vitalSigns.bloodPressure && (
                                 <div className="bg-white/5 rounded-lg p-2 text-center">
                                   <p className="text-[10px] text-white/30">BP</p>
-                                  <p className="text-xs text-white font-medium">{rec.vitalSigns.bloodPressure}</p>
+                                  <p className="text-xs text-white font-medium">
+                                    {rec.vitalSigns.bloodPressure}
+                                  </p>
                                 </div>
                               )}
                               {rec.vitalSigns.respiratoryRate && (
                                 <div className="bg-white/5 rounded-lg p-2 text-center">
                                   <p className="text-[10px] text-white/30">RR</p>
-                                  <p className="text-xs text-white font-medium">{rec.vitalSigns.respiratoryRate}</p>
+                                  <p className="text-xs text-white font-medium">
+                                    {rec.vitalSigns.respiratoryRate}
+                                  </p>
                                 </div>
                               )}
                               {rec.vitalSigns.heartRate && (
                                 <div className="bg-white/5 rounded-lg p-2 text-center">
                                   <p className="text-[10px] text-white/30">HR</p>
-                                  <p className="text-xs text-white font-medium">{rec.vitalSigns.heartRate}</p>
+                                  <p className="text-xs text-white font-medium">
+                                    {rec.vitalSigns.heartRate}
+                                  </p>
                                 </div>
                               )}
                             </div>
@@ -439,8 +448,17 @@ export default function PatientPortal() {
                                 <div key={i} className="flex items-center justify-between text-xs">
                                   <span className="text-white/70">{m.name}</span>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-white/30">{m.dosage} · {m.duration}</span>
-                                    <Chip size="sm" className={cn("border text-[10px]", CATEGORY_COLORS[m.category])} variant="flat">
+                                    <span className="text-white/30">
+                                      {m.dosage} · {m.duration}
+                                    </span>
+                                    <Chip
+                                      size="sm"
+                                      className={cn(
+                                        "border text-[10px]",
+                                        CATEGORY_COLORS[m.category]
+                                      )}
+                                      variant="flat"
+                                    >
                                       {m.category}
                                     </Chip>
                                   </div>
@@ -478,40 +496,68 @@ export default function PatientPortal() {
       </Tabs>
 
       {/* New Patient Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} classNames={{
-        base: "bg-[#0d1626] border border-white/10",
-        header: "border-b border-white/5",
-        footer: "border-t border-white/5",
-      }}>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        classNames={{
+          base: "bg-[#0d1626] border border-white/10",
+          header: "border-b border-white/5",
+          footer: "border-t border-white/5",
+        }}
+      >
         <ModalContent>
           <ModalHeader className="text-white">Register New Patient</ModalHeader>
           <ModalBody className="space-y-3">
-            <p className="text-white/40 text-sm">Patient <strong className="text-white">{patientId}</strong> not found. Please fill in basic details.</p>
+            <p className="text-white/40 text-sm">
+              Patient <strong className="text-white">{patientId}</strong> not found. Please fill in
+              basic details.
+            </p>
             <Input
-              label="Full Name" placeholder="Rahim Uddin"
-              classNames={{ input: "bg-transparent text-white", inputWrapper: "bg-white/5 border-white/10" }}
+              label="Full Name"
+              placeholder="Rahim Uddin"
+              classNames={{
+                input: "bg-transparent text-white",
+                inputWrapper: "bg-white/5 border-white/10",
+              }}
               onChange={(e) => setPatientForm((p) => ({ ...p, name: e.target.value }))}
             />
             <div className="grid grid-cols-2 gap-3">
               <Input
-                label="Age" type="number" placeholder="25"
-                classNames={{ input: "bg-transparent text-white", inputWrapper: "bg-white/5 border-white/10" }}
-                onChange={(e) => setPatientForm((p) => ({ ...p, age: parseInt(e.target.value) }))}
+                label="Age"
+                type="number"
+                placeholder="25"
+                classNames={{
+                  input: "bg-transparent text-white",
+                  inputWrapper: "bg-white/5 border-white/10",
+                }}
+                onChange={(e) =>
+                  setPatientForm((p) => ({ ...p, age: parseInt(e.target.value) }))
+                }
               />
               <Input
-                label="Blood Group" placeholder="B+"
-                classNames={{ input: "bg-transparent text-white", inputWrapper: "bg-white/5 border-white/10" }}
+                label="Blood Group"
+                placeholder="B+"
+                classNames={{
+                  input: "bg-transparent text-white",
+                  inputWrapper: "bg-white/5 border-white/10",
+                }}
                 onChange={(e) => setPatientForm((p) => ({ ...p, bloodGroup: e.target.value }))}
               />
             </div>
             <Input
-              label="Phone" placeholder="01711000000"
-              classNames={{ input: "bg-transparent text-white", inputWrapper: "bg-white/5 border-white/10" }}
+              label="Phone"
+              placeholder="01711000000"
+              classNames={{
+                input: "bg-transparent text-white",
+                inputWrapper: "bg-white/5 border-white/10",
+              }}
               onChange={(e) => setPatientForm((p) => ({ ...p, phone: e.target.value }))}
             />
           </ModalBody>
           <ModalFooter>
-            <Button variant="light" onClick={onClose} className="text-white/50">Cancel</Button>
+            <Button variant="light" onClick={onClose} className="text-white/50">
+              Cancel
+            </Button>
             <Button className="bg-emerald-500 text-white" onClick={handleSaveRecord}>
               Register & Save Record
             </Button>

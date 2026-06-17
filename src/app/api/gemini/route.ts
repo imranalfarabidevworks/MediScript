@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { apiKey, ...geminiBody } = await req.json();
+    const geminiBody = await req.json();
 
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: "API Key missing" }, { status: 400 });
+      return NextResponse.json({ error: "API Key not configured on server" }, { status: 500 });
     }
 
     const response = await fetch(
