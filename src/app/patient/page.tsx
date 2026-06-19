@@ -514,7 +514,7 @@ export default function PatientPortal() {
             </p>
             <Input
               label="Full Name"
-              placeholder="Rahim Uddin"
+              placeholder="Enter Your Name"
               classNames={{
                 input: "bg-transparent text-white",
                 inputWrapper: "bg-white/5 border-white/10",
@@ -525,7 +525,7 @@ export default function PatientPortal() {
               <Input
                 label="Age"
                 type="number"
-                placeholder="25"
+                placeholder="Your Age"
                 classNames={{
                   input: "bg-transparent text-white",
                   inputWrapper: "bg-white/5 border-white/10",
@@ -536,7 +536,7 @@ export default function PatientPortal() {
               />
               <Input
                 label="Blood Group"
-                placeholder="B+"
+                placeholder="Blood"
                 classNames={{
                   input: "bg-transparent text-white",
                   inputWrapper: "bg-white/5 border-white/10",
@@ -546,7 +546,7 @@ export default function PatientPortal() {
             </div>
             <Input
               label="Phone"
-              placeholder="01711000000"
+              placeholder="Your Number"
               classNames={{
                 input: "bg-transparent text-white",
                 inputWrapper: "bg-white/5 border-white/10",
