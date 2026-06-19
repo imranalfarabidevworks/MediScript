@@ -14,20 +14,6 @@ const KEYS = {
   STATS: "mediscript_stats",
 } as const;
 
-type Stats = {
-  totalParsed: number;
-  totalPatients: number;
-  totalDoctors: number;
-  lastUpdated: string;
-};
-
-const EMPTY_STATS: Stats = {
-  totalParsed: 0,
-  totalPatients: 0,
-  totalDoctors: 0,
-  lastUpdated: new Date().toISOString(),
-};
-
 function safeGet<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -47,97 +33,7 @@ function safeSet<T>(key: string, value: T): void {
   }
 }
 
-// ── Record Normalization ──
-// Gemini's parsed output isn't guaranteed to match the MedicalRecord shape
-// exactly (missing fields, wrong types, null instead of array, etc). This
-// guards against that so a bad AI response can't crash the UI later when
-// something does record.medicines.map(...) or similar.
-
-function toStringSafe(value: unknown, fallback = ""): string {
-  if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  return fallback;
-}
-
-function normalizeMedicine(raw: unknown): MedicalRecord["medicines"][number] | null {
-  if (!raw || typeof raw !== "object") return null;
-  const m = raw as Record<string, unknown>;
-  const name = toStringSafe(m.name);
-  if (!name) return null; // a medicine with no name is useless, drop it
-
-  const allowedCategories = [
-    "Antibiotic",
-    "Vitamin",
-    "Gastric",
-    "Antihypertensive",
-    "Calcium",
-    "Painkiller",
-    "Other",
-  ];
-  const category = allowedCategories.includes(m.category as string)
-    ? (m.category as MedicalRecord["medicines"][number]["category"])
-    : "Other";
-
-  return {
-    name,
-    dosage: toStringSafe(m.dosage, "N/A"),
-    duration: toStringSafe(m.duration, "N/A"),
-    category,
-  };
-}
-
-function normalizeTestResult(raw: unknown): MedicalRecord["testResults"][number] | null {
-  if (!raw || typeof raw !== "object") return null;
-  const t = raw as Record<string, unknown>;
-  const testName = toStringSafe(t.testName);
-  if (!testName) return null;
-
-  return {
-    testName,
-    value: toStringSafe(t.value, "N/A"),
-    unit: toStringSafe(t.unit, ""),
-    referenceRange: toStringSafe(t.referenceRange, ""),
-  };
-}
-
-/**
- * Normalizes a record that may have come straight from an AI parse
- * (Gemini) before it's persisted. Never throws — always returns a
- * well-shaped MedicalRecord, filling in safe defaults for anything
- * missing or malformed.
- */
-export function normalizeRecord(
-  raw: Partial<MedicalRecord> & Record<string, unknown>
-): MedicalRecord {
-  const vitalSignsRaw =
-    raw.vitalSigns && typeof raw.vitalSigns === "object" ? raw.vitalSigns : {};
-
-  const medicinesArray = Array.isArray(raw.medicines) ? raw.medicines : [];
-  const testResultsArray = Array.isArray(raw.testResults) ? raw.testResults : [];
-
-  return {
-    recordId: toStringSafe(raw.recordId) || `REC-${crypto.randomUUID()}`,
-    patientId: toStringSafe(raw.patientId).trim().toUpperCase(),
-    date: toStringSafe(raw.date) || new Date().toISOString().split("T")[0],
-    doctorName: toStringSafe(raw.doctorName, "Unknown"),
-    patientCase: toStringSafe(raw.patientCase),
-    vitalSigns: {
-      bloodPressure: toStringSafe((vitalSignsRaw as Record<string, unknown>).bloodPressure) || undefined,
-      respiratoryRate: toStringSafe((vitalSignsRaw as Record<string, unknown>).respiratoryRate) || undefined,
-      heartRate: toStringSafe((vitalSignsRaw as Record<string, unknown>).heartRate) || undefined,
-      temperature: toStringSafe((vitalSignsRaw as Record<string, unknown>).temperature) || undefined,
-    },
-    medicines: medicinesArray
-      .map(normalizeMedicine)
-      .filter((m): m is MedicalRecord["medicines"][number] => m !== null),
-    testResults: testResultsArray
-      .map(normalizeTestResult)
-      .filter((t): t is MedicalRecord["testResults"][number] => t !== null),
-    uploadedAt: toStringSafe(raw.uploadedAt) || new Date().toISOString(),
-  };
-}
-
-// ── Records ──
+// -- Records--
 export function getAllRecords(): MedicalRecord[] {
   return safeGet<MedicalRecord[]>(KEYS.RECORDS, []);
 }
@@ -149,24 +45,22 @@ export function getRecordsByPatient(patientId: string): MedicalRecord[] {
 }
 
 export function saveRecord(record: MedicalRecord): void {
-  const safeRecord = normalizeRecord(record);
-
   const existing = getAllRecords();
-  const idx = existing.findIndex((r) => r.recordId === safeRecord.recordId);
+  const idx = existing.findIndex((r) => r.recordId === record.recordId);
   if (idx >= 0) {
-    existing[idx] = safeRecord;
+    existing[idx] = record;
   } else {
-    existing.push(safeRecord);
+    existing.push(record);
   }
   safeSet(KEYS.RECORDS, existing);
   incrementParsedCount();
   addAuditLog({
     logId: crypto.randomUUID(),
     action: "RECORD_SAVED",
-    target: safeRecord.patientId,
+    target: record.patientId,
     timestamp: new Date().toISOString(),
     success: true,
-    details: `Record ${safeRecord.recordId} saved`,
+    details: `Record ${record.recordId} saved`,
   });
 }
 
@@ -221,7 +115,7 @@ export function deleteDoctor(doctorId: string): void {
   safeSet(KEYS.DOCTORS, updated);
 }
 
-// ── Audit Logs ──
+// ── Audit Logs ───
 export function getAuditLogs(): AuditLog[] {
   return safeGet<AuditLog[]>(KEYS.AUDIT_LOGS, []);
 }
@@ -233,38 +127,30 @@ export function addAuditLog(log: AuditLog): void {
 }
 
 // ── Stats ──
-// Fixed: previously `stats.totalParsed + 1` could become NaN silently if
-// an old/partial object was sitting in localStorage without that field.
-// Now every field is coerced through Number.isFinite(...) with a safe fallback.
 function incrementParsedCount(): void {
-  const stats = safeGet<Partial<Stats>>(KEYS.STATS, EMPTY_STATS);
-  const safeTotalParsed = Number.isFinite(stats.totalParsed) ? (stats.totalParsed as number) : 0;
-
-  const updated: Stats = {
-    totalParsed: safeTotalParsed + 1,
-    totalPatients: Number.isFinite(stats.totalPatients)
-      ? (stats.totalPatients as number)
-      : EMPTY_STATS.totalPatients,
-    totalDoctors: Number.isFinite(stats.totalDoctors)
-      ? (stats.totalDoctors as number)
-      : EMPTY_STATS.totalDoctors,
+  const stats = safeGet(KEYS.STATS, {
+    totalParsed: 0,
+    totalPatients: 0,
+    totalDoctors: 0,
     lastUpdated: new Date().toISOString(),
-  };
-
-  safeSet(KEYS.STATS, updated);
+  });
+  safeSet(KEYS.STATS, {
+    ...stats,
+    totalParsed: stats.totalParsed + 1,
+    lastUpdated: new Date().toISOString(),
+  });
 }
 
-export function getStats(): Stats {
-  const stats = safeGet<Partial<Stats>>(KEYS.STATS, EMPTY_STATS);
-  return {
-    totalParsed: Number.isFinite(stats.totalParsed) ? (stats.totalParsed as number) : 0,
-    totalPatients: Number.isFinite(stats.totalPatients) ? (stats.totalPatients as number) : 0,
-    totalDoctors: Number.isFinite(stats.totalDoctors) ? (stats.totalDoctors as number) : 0,
-    lastUpdated: toStringSafe(stats.lastUpdated) || new Date().toISOString(),
-  };
+export function getStats() {
+  return safeGet(KEYS.STATS, {
+    totalParsed: 0,
+    totalPatients: 0,
+    totalDoctors: 0,
+    lastUpdated: new Date().toISOString(),
+  });
 }
 
-// ── Mock Data Injection ──
+// ── Mock Data Injection ─
 export function injectMockData(): void {
   const mockPatients: Patient[] = [
     {
