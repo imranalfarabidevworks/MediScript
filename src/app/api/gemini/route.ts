@@ -24,8 +24,7 @@ export async function POST(req: Request) {
 
     const data = await response.json();
 
-    // Gemini returned an error (404, 403, 400, etc.) — surface it instead of
-    // silently passing it through as if it were a successful response.
+   
     if (!response.ok) {
       console.error("Gemini API error response:", JSON.stringify(data));
       return NextResponse.json(
