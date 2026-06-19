@@ -15,7 +15,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="flex min-h-screen">
             <Sidebar />
-            <main className="flex-1 ml-64 min-h-screen">{children}</main>
+            {/* Mobile: no left margin, top padding clears the fixed top bar (h-14).
+                Desktop (md+): ml-64 clears the fixed sidebar, no top bar so pt-0. */}
+            <main className="flex-1 min-h-screen pt-14 md:pt-0 md:ml-64">
+              {children}
+            </main>
           </div>
         </Providers>
       </body>
